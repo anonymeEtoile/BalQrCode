@@ -1,10 +1,10 @@
 {
-  "projectId": "root-reason-2w1xt",
-  "appId": "1:902859036578:web:fddd85d90964ccc94304fb",
-  "apiKey": "AIzaSyDoSbB0IxUTb997HyXRQW-rA8h4mb0i7Xw",
-  "authDomain": "root-reason-2w1xt.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-2642dfcf-e12b-43fb-9082-2685bc5fc5d9",
-  "storageBucket": "root-reason-2w1xt.firebasestorage.app",
-  "messagingSenderId": "902859036578",
-  "measurementId": ""
+  "projectId": "ballycee",
+  "appId": "1:926189267865:web:1cf0e5472aa2fc207c4108",
+  "apiKey": "AIzaSyBa35eu9jbJC2g-gpo007pLuq0z_WsSshQ",
+  "authDomain": "ballycee.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "ballycee.firebasestorage.app",
+  "messagingSenderId": "926189267865",
+  "measurementId": "G-40F49Z41CT"
 }

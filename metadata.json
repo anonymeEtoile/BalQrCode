@@ -1,0 +1,6 @@
+{
+  "name": "Bal LMMF - Admin",
+  "description": "Application web de billetterie et de gestion pour le bal de fin d'année du Lycée Marie Madeleine Fourcade.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Verified email check. Local dev environment emulator handles this, but in production we rely on emails.
+    // For AI studio applets with Google sign-in we can trust request.auth.token.email.
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Role check logic
+    function isAdmin() {
+      return isSignedIn() && isEmailVerified() && (
+        request.auth.token.email == "emile.repellin.31@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.\\@]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // -- Admin schema
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'grantedBy', 'createdAt'])
+        && data.keys().size() == 3
+        && data.email is string && data.email.size() <= 100
+        && data.grantedBy is string && data.grantedBy.size() <= 60
+        && data.createdAt == request.time;
+    }
+
+    // -- Ticket schema
+    function isValidTicket(data) {
+      return data.keys().hasAll(['firstName', 'lastName', 'studentClass', 'amount', 'createdBy', 'createdAt', 'scanned'])
+        && data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 100
+        && data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 100
+        && data.studentClass is string && data.studentClass.size() <= 50
+        && data.amount is number && data.amount >= 0 && data.amount <= 1000
+        && data.createdBy is string && data.createdBy == request.auth.uid
+        && data.createdAt == request.time
+        && data.scanned is bool;
+    }
+
+    // -- Settings schema
+    function isValidSettings(data) {
+      return data.keys().hasAll(['scanActive', 'updatedBy', 'updatedAt'])
+        && data.keys().size() == 3
+        && data.scanActive is bool
+        && data.updatedBy is string && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time;
+    }
+
+    // Collections
+    
+    match /admins/{emailId} {
+      allow get: if isAdmin() && isValidId(emailId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(emailId) && isValidAdmin(incoming()) && incoming().email == emailId;
+      allow update: if false; // immutable
+      allow delete: if isAdmin() && emailId != "emile.repellin.31@gmail.com" && emailId != request.auth.token.email; // cannot delete oneself or root
+    }
+
+    match /tickets/{ticketId} {
+      allow get: if isAdmin() && isValidId(ticketId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(ticketId) && isValidTicket(incoming()) && incoming().scanned == false;
+      allow update: if isAdmin() && isValidId(ticketId) && (
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['scanned', 'scannedAt'])
+          && incoming().scanned == true
+          && existing().scanned == false
+          && incoming().scannedAt == request.time
+          && get(/databases/$(database)/documents/settings/global).data.scanActive == true
+        ) || (
+          incoming().diff(existing()).affectedKeys().hasOnly(['scanned', 'scannedAt'])
+          && incoming().scanned == false
+        )
+      );
+      allow delete: if isAdmin() && isValidId(ticketId);
+    }
+
+    match /settings/{settingId} {
+      allow get: if isAdmin() && settingId == "global";
+      allow list: if isAdmin();
+      allow create: if isAdmin() && settingId == "global" && isValidSettings(incoming());
+      allow update: if isAdmin() && settingId == "global" && isValidSettings(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['scanActive', 'updatedBy', 'updatedAt'])
+      );
+      allow delete: if false;
+    }
+  }
+}

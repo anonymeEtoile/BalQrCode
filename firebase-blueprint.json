@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "An administrator allowed to access the system",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Administrator email address"
+        },
+        "grantedBy": {
+          "type": "string",
+          "description": "UID of the admin who granted access"
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "When the admin was created"
+        }
+      },
+      "required": ["email", "grantedBy", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "A sold ticket for the prom",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "studentClass": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "scanned": { "type": "boolean" },
+        "scannedAt": { "type": "timestamp", "description": "Nullable timestamp" }
+      },
+      "required": ["firstName", "lastName", "studentClass", "amount", "createdBy", "createdAt", "scanned"]
+    },
+    "GlobalSettings": {
+      "title": "GlobalSettings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "scanActive": { "type": "boolean" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["scanActive", "updatedBy", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{email}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Administrators by email"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Sold tickets"
+    },
+    "/settings/global": {
+      "schema": { "$ref": "#/entities/GlobalSettings" },
+      "description": "Singleton global settings"
+    }
+  }
+}

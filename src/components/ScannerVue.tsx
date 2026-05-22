@@ -3,7 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { doc, getDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Ticket } from '../types';
-import { ShieldAlert, CheckCircle2, XCircle, PowerOff } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, PowerOff, Settings, Timer } from 'lucide-react';
 
 export default function ScannerVue() {
   const [scanActive, setScanActive] = useState(false);
@@ -18,6 +18,32 @@ export default function ScannerVue() {
   const isProcessingRef = useRef(false);
   const handleScanRef = useRef<any>(null);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('scanSettings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      autoDismiss: false,
+      dismissDuration: 3, // default 3 seconds
+    };
+  });
+
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+    try {
+      localStorage.setItem('scanSettings', JSON.stringify(settings));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [settings]);
 
   useEffect(() => {
     return () => {
@@ -56,9 +82,11 @@ export default function ScannerVue() {
       if (!ticketSnap.exists()) {
         setStatus('error');
         setMessage("Billet introuvable ! Ce QR code n'est pas dans la base.");
-        timeoutIdRef.current = setTimeout(() => {
-          resetState();
-        }, 5000);
+        if (settingsRef.current.autoDismiss) {
+          timeoutIdRef.current = setTimeout(() => {
+            resetState();
+          }, settingsRef.current.dismissDuration * 1000);
+        }
         return;
       }
       
@@ -80,18 +108,20 @@ export default function ScannerVue() {
         isSuccess = true;
       }
       
-      // Success auto-destruct is very short (1 second) to allow continuous quick scans
-      // Error stays longer but can be dismissed with a tap
-      timeoutIdRef.current = setTimeout(() => {
-        resetState();
-      }, isSuccess ? 1000 : 5000);
+      if (settingsRef.current.autoDismiss) {
+        timeoutIdRef.current = setTimeout(() => {
+          resetState();
+        }, settingsRef.current.dismissDuration * 1000);
+      }
 
     } catch (err: any) {
       setStatus('error');
       setMessage("Erreur de validation. " + (err.message.includes("permission") ? "Le scan n'est peut-être pas activé globalement." : err.message));
-      timeoutIdRef.current = setTimeout(() => {
-        resetState();
-      }, 5000);
+      if (settingsRef.current.autoDismiss) {
+        timeoutIdRef.current = setTimeout(() => {
+          resetState();
+        }, settingsRef.current.dismissDuration * 1000);
+      }
     }
   };
 
@@ -176,12 +206,58 @@ export default function ScannerVue() {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
-      <div className="bg-white dark:bg-zinc-800 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm flex items-center justify-between">
-        <div>
-           <h2 className="text-xl font-bold">Contrôle d'Accès</h2>
-           <p className="text-sm text-zinc-500">Pointez la caméra vers le QR Code</p>
+      <div className="bg-white dark:bg-zinc-800 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+             <h2 className="text-xl font-bold">Contrôle d'Accès</h2>
+             <p className="text-sm text-zinc-500">Pointez la caméra vers le QR Code</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-2 rounded-xl border transition-colors ${showSettings ? 'bg-zinc-100 dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600' : 'bg-transparent border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'}`}
+              title="Paramètres de scan"
+            >
+              <Settings className="w-5 h-5 text-zinc-650 dark:text-zinc-300" />
+            </button>
+            <ShieldCheckIndicator status={status} />
+          </div>
         </div>
-        <ShieldCheckIndicator status={status} />
+
+        {showSettings && (
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-700 space-y-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Scanner automatique</label>
+                <p className="text-xs text-zinc-400">Fermer automatiquement le popup après scan</p>
+              </div>
+              <button
+                onClick={() => setSettings(prev => ({ ...prev, autoDismiss: !prev.autoDismiss }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.autoDismiss ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.autoDismiss ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            {settings.autoDismiss && (
+              <div className="space-y-2 animate-in fade-in duration-200">
+                <div className="flex justify-between items-center text-xs text-zinc-400">
+                  <span className="flex items-center gap-1"><Timer className="w-3.5 h-3.5" /> Temps de fermeture :</span>
+                  <span className="font-bold text-zinc-805 dark:text-zinc-200">{settings.dismissDuration} seconde{settings.dismissDuration > 1 ? 's' : ''}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={settings.dismissDuration}
+                  onChange={(e) => setSettings(prev => ({ ...prev, dismissDuration: parseInt(e.target.value) }))}
+                  className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-lg cursor-pointer accent-emerald-600"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {cameraError && (
@@ -194,7 +270,7 @@ export default function ScannerVue() {
           <p className="text-sm font-medium mt-3 text-red-800 dark:text-red-200">
             Veuillez ouvrir l'application dans un nouvel onglet pour utiliser le scanner (cliquez sur "Open App" en haut à droite).
           </p>
-          <button onClick={() => window.open(window.location.href, '_blank')} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white font-medium rounded-lg text-sm w-full transition-colors">
+          <button onClick={() => window.open(window.location.href, '_blank')} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white font-medium rounded-lg text-sm w-full transition-colors font-semibold">
             Ouvrir dans un nouvel onglet
           </button>
         </div>
@@ -202,7 +278,7 @@ export default function ScannerVue() {
 
       <div className={`overflow-hidden rounded-2xl border-4 transition-colors ${status === 'idle' ? 'border-zinc-200 dark:border-zinc-700' : status === 'success' ? 'border-green-500' : 'border-red-500'}`}>
         {/* Camera placeholder/container */}
-        <div id="reader" className="w-full bg-black aspect-square object-cover" />
+        <div id="reader" className="w-full bg-black aspect-square object-cover animate-pulse" />
       </div>
 
       {status !== 'idle' && (
@@ -212,7 +288,7 @@ export default function ScannerVue() {
         >
           {status === 'success' ? (
             /* Petit popup vert */
-            <div className="bg-emerald-650 dark:bg-emerald-600 text-white p-6 rounded-3xl shadow-2xl max-w-sm w-full text-center flex flex-col items-center animate-in zoom-in-95 duration-200 cursor-default" onClick={e => e.stopPropagation()}>
+            <div className="bg-emerald-600 dark:bg-emerald-700 text-white p-6 rounded-3xl shadow-2xl max-w-sm w-full text-center flex flex-col items-center animate-in zoom-in-95 duration-200 cursor-default" onClick={e => e.stopPropagation()}>
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-bounce">
                 <CheckCircle2 className="w-10 h-10 text-white" />
               </div>
@@ -225,6 +301,13 @@ export default function ScannerVue() {
                   <p className="text-sm opacity-85 mt-0.5">{lastScanned.studentClass}</p>
                 </div>
               )}
+
+              <button
+                onClick={resetState}
+                className="mt-6 w-full py-3 px-6 bg-white text-emerald-700 hover:bg-emerald-50 dark:text-emerald-800 font-bold rounded-xl shadow-lg transition-transform active:scale-95 duration-100 uppercase tracking-wide text-sm"
+              >
+                Qrcode suivant
+              </button>
             </div>
           ) : (
             /* Gros popup rouge */
@@ -245,6 +328,13 @@ export default function ScannerVue() {
                   </span>
                 </div>
               )}
+
+              <button
+                onClick={resetState}
+                className="mt-6 w-full py-3 px-6 bg-white text-red-700 hover:bg-red-50 dark:text-red-800 font-bold rounded-xl shadow-lg transition-transform active:scale-95 duration-100 uppercase tracking-wide text-sm"
+              >
+                Qrcode suivant
+              </button>
             </div>
           )}
         </div>

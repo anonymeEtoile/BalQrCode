@@ -14,6 +14,7 @@ export interface Ticket {
   createdAt: any; // Timestamp
   scanned: boolean;
   scannedAt: any | null; // Timestamp
+  isGhost?: boolean;
 }
 
 export interface GlobalSettings {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { doc, setDoc, collection, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Ticket as TicketIcon, Eye, Download, Wifi, WifiOff, CheckCircle, RefreshCw, Trash2, X } from 'lucide-react';
+import { Ticket as TicketIcon, Eye, Download, Wifi, WifiOff, CheckCircle, RefreshCw, Trash2, X, Ghost } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as htmlToImage from 'html-to-image';
 
@@ -14,6 +14,7 @@ interface SessionTicket {
   amount: number;
   createdAtLocal: string;
   synced: boolean;
+  isGhost?: boolean;
 }
 
 export default function Guichet() {
@@ -23,6 +24,9 @@ export default function Guichet() {
   const [stream, setStream] = useState('STMG');
   const [classNum, setClassNum] = useState('');
   const [amount, setAmount] = useState<number | ''>(5);
+  const [isGhost, setIsGhost] = useState(false);
+
+  const isEmile = auth.currentUser?.email?.toLowerCase() === 'emile.repellin.31@gmail.com';
 
   const computedClass = (() => {
     const parts = [];
@@ -143,7 +147,8 @@ export default function Guichet() {
       createdBy: auth.currentUser?.uid || 'anonymous',
       createdAt: serverTimestamp(),
       scanned: false,
-      scannedAt: null
+      scannedAt: null,
+      isGhost: isEmile ? isGhost : false
     };
 
     const localTicket: SessionTicket = {
@@ -153,7 +158,8 @@ export default function Guichet() {
       studentClass: trimmedClass,
       amount: numericAmount,
       createdAtLocal: new Date().toISOString(),
-      synced: false
+      synced: false,
+      isGhost: isEmile ? isGhost : false
     };
 
     // Add to session list immediately to avoid waiting
@@ -171,6 +177,7 @@ export default function Guichet() {
     setLastName('');
     setClassNum('');
     setAmount(5);
+    setIsGhost(false);
     setLoading(false);
 
     // Save metadata locally to firestore cache
@@ -380,6 +387,25 @@ export default function Guichet() {
               <input type="number" min="0" step="0.5" inputMode="decimal" autoComplete="off" autoCorrect="off" value={amount} onChange={e => setAmount(e.target.value ? Number(e.target.value) : '')} placeholder="5" className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-base md:text-sm focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-none" />
             </div>
 
+            {isEmile && (
+              <div className="p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 rounded-2xl flex items-center justify-between transition-colors mt-2 animate-in slide-in-from-top-1">
+                <div className="flex items-center gap-2.5">
+                  <Ghost className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
+                  <div>
+                    <label className="text-sm font-bold text-purple-950 dark:text-purple-300">Élève Fantôme 👻</label>
+                    <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Masqué pour les autres admins.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGhost(!isGhost)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${isGhost ? 'bg-purple-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isGhost ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            )}
+
             <button disabled={loading} type="submit" className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 font-medium py-3 rounded-xl transition-colors mt-6 disabled:opacity-50 flex items-center justify-center gap-2">
               Validé la vente
             </button>
@@ -405,7 +431,9 @@ export default function Guichet() {
             {sessionTickets.map((t) => (
               <div key={t.id} className="p-3 bg-zinc-50 dark:bg-zinc-900/60 rounded-xl border border-zinc-100 dark:border-zinc-850 flex items-center justify-between">
                 <div className="min-w-0 pr-2">
-                  <p className="font-semibold text-sm truncate">{t.firstName} {t.lastName}</p>
+                  <p className="font-semibold text-sm truncate">
+                    {t.firstName} {t.lastName} {isEmile && t.isGhost && <span className="text-purple-600 dark:text-purple-400" title="Élève Fantôme">👻</span>}
+                  </p>
                   <p className="text-xs text-zinc-500 truncate">{t.studentClass} • {t.amount} €</p>
                   <p className="mt-1">
                     {t.synced ? (

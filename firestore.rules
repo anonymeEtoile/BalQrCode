@@ -48,7 +48,8 @@ service cloud.firestore {
         && data.amount is number && data.amount >= 0 && data.amount <= 1000
         && data.createdBy is string && data.createdBy == request.auth.uid
         && data.createdAt == request.time
-        && data.scanned is bool;
+        && data.scanned is bool
+        && (!data.keys().hasAny(['isGhost']) || (data.isGhost is bool && (data.isGhost == false || request.auth.token.email == "emile.repellin.31@gmail.com")));
     }
 
     // -- Settings schema

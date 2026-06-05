@@ -32,7 +32,8 @@
         "createdBy": { "type": "string" },
         "createdAt": { "type": "timestamp" },
         "scanned": { "type": "boolean" },
-        "scannedAt": { "type": "timestamp", "description": "Nullable timestamp" }
+        "scannedAt": { "type": "timestamp", "description": "Nullable timestamp" },
+        "isGhost": { "type": "boolean", "description": "Whether the ticket belongs to a ghost student" }
       },
       "required": ["firstName", "lastName", "studentClass", "amount", "createdBy", "createdAt", "scanned"]
     },

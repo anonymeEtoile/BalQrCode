@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { Ticket } from '../types';
-import { Search, Eye, CheckCircle, Download, Users, Trash2, RotateCcw, FileSpreadsheet, FolderDown, Loader2 } from 'lucide-react';
+import { Search, Eye, CheckCircle, Download, Users, Trash2, RotateCcw, FileSpreadsheet, FolderDown, Loader2, Ghost } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import * as htmlToImage from 'html-to-image';
 
@@ -17,6 +17,9 @@ export default function Students() {
   const [viewTicket, setViewTicket] = useState<(Ticket & { id: string }) | null>(null);
   const [deleteConfirmTicket, setDeleteConfirmTicket] = useState<{ id: string, name: string } | null>(null);
 
+  const [ghostModeActive, setGhostModeActive] = useState(false);
+  const isEmile = auth.currentUser?.email?.toLowerCase() === 'emile.repellin.31@gmail.com';
+
   const qrRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isZipExporting, setIsZipExporting] = useState(false);
@@ -30,6 +33,13 @@ export default function Students() {
 
   const filteredAndSortedTickets = useMemo(() => {
     let result = tickets;
+
+    // Filter by ghost state
+    if (isEmile && ghostModeActive) {
+      result = result.filter(t => t.isGhost === true);
+    } else {
+      result = result.filter(t => !t.isGhost);
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -57,7 +67,7 @@ export default function Students() {
     });
 
     return result;
-  }, [tickets, search, sortField, sortOrder]);
+  }, [tickets, search, sortField, sortOrder, ghostModeActive, isEmile]);
 
   const handleExport = async () => {
     if (!qrRef.current || !viewTicket) return;
@@ -76,10 +86,14 @@ export default function Students() {
     }
   };
 
+  const ticketsToExport = useMemo(() => {
+    return tickets.filter(t => isEmile && ghostModeActive ? t.isGhost === true : !t.isGhost);
+  }, [tickets, isEmile, ghostModeActive]);
+
   const handleExportCSV = () => {
-    if (tickets.length === 0) return;
+    if (ticketsToExport.length === 0) return;
     const headers = ['ID Billet', 'Nom', 'Prénom', 'Classe', 'Statut', 'Date d\'entrée', 'Montant Payé (€)', 'Date d\'achat'];
-    const rows = tickets.map(t => {
+    const rows = ticketsToExport.map(t => {
       const status = t.scanned ? 'Scanné' : 'En attente';
       const entryDate = t.scannedAt?.toDate ? t.scannedAt.toDate().toLocaleString('fr-FR') : (t.scannedAt ? new Date(t.scannedAt).toLocaleString('fr-FR') : '');
       const purchaseDate = t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString('fr-FR') : (t.createdAt ? new Date(t.createdAt).toLocaleString('fr-FR') : '');
@@ -112,14 +126,14 @@ export default function Students() {
   };
 
   const handleExportAllQRs = async () => {
-    if (tickets.length === 0) return;
+    if (ticketsToExport.length === 0) return;
     setIsZipExporting(true);
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       
       let addedCount = 0;
-      for (const t of tickets) {
+      for (const t of ticketsToExport) {
         const qrCanvas = document.getElementById(`qr-canvas-${t.id}`) as HTMLCanvasElement | null;
         if (qrCanvas) {
           // Create high-resolution offscreen ticket pass canvas
@@ -284,14 +298,18 @@ export default function Students() {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold">Tous les Élèves</h2>
-            <p className="text-zinc-500">Gérez, recherchez et exportez les billets des participants.</p>
+            <h2 className="text-2xl font-bold">{isEmile && ghostModeActive ? "Élèves Fantômes 👻" : "Tous les Élèves"}</h2>
+            <p className="text-zinc-500">
+              {isEmile && ghostModeActive 
+                ? "Gérez la liste secrète des invités surprises (visibles uniquement par vous)."
+                : "Gérez, recherchez et exportez les billets des participants."}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
             onClick={handleExportCSV}
-            disabled={tickets.length === 0}
+            disabled={ticketsToExport.length === 0}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white font-semibold text-sm rounded-xl transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:pointer-events-none"
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -300,7 +318,7 @@ export default function Students() {
           
           <button
             onClick={handleExportAllQRs}
-            disabled={isZipExporting || tickets.length === 0}
+            disabled={isZipExporting || ticketsToExport.length === 0}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 dark:text-zinc-900 text-white font-semibold text-sm rounded-xl transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:pointer-events-none"
           >
             {isZipExporting ? (
@@ -314,18 +332,34 @@ export default function Students() {
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-zinc-800 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input 
-            type="text" 
-            placeholder="Rechercher élève ou classe..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input 
+              type="text" 
+              placeholder="Rechercher élève ou classe..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            />
+          </div>
+
+          {isEmile && (
+            <button
+              onClick={() => setGhostModeActive(!ghostModeActive)}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-xs font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[40px] ${
+                ghostModeActive 
+                  ? 'bg-purple-650 border-purple-600 text-white shadow-md' 
+                  : 'bg-purple-100/50 dark:bg-purple-950/20 border-purple-200/50 dark:border-purple-800/40 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30'
+              }`}
+            >
+              <Ghost className={`w-4 h-4 ${ghostModeActive ? 'animate-bounce' : 'animate-pulse'}`} />
+              <span>{ghostModeActive ? "Mode Fantôme : Actif" : "Mode Fantôme 👻"}</span>
+            </button>
+          )}
         </div>
-        <div className="text-sm text-zinc-500">
-          {filteredAndSortedTickets.length} élève{filteredAndSortedTickets.length !== 1 ? 's' : ''} trouvé{filteredAndSortedTickets.length !== 1 ? 's' : ''}
+        <div className="text-sm text-zinc-500 font-medium">
+          {filteredAndSortedTickets.length} {isEmile && ghostModeActive ? 'élève-fantôme' : 'élève'}{filteredAndSortedTickets.length !== 1 ? 's' : ''} trouvé{filteredAndSortedTickets.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -361,7 +395,7 @@ export default function Students() {
               {filteredAndSortedTickets.map(t => (
                 <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                   <td className="px-6 py-4 font-medium">
-                    {t.lastName} {t.firstName}
+                    {t.lastName} {t.firstName} {isEmile && t.isGhost && <span className="text-purple-600 dark:text-purple-400" title="Élève Fantôme">👻</span>}
                     {t.hasPendingWrites && (
                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">
                         Pas synchronisé
@@ -419,7 +453,7 @@ export default function Students() {
               <div className="flex justify-between items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <h4 className="font-bold text-[16px] text-zinc-900 dark:text-white truncate">
-                    {t.lastName} {t.firstName}
+                    {t.lastName} {t.firstName} {isEmile && t.isGhost && <span className="text-purple-600 dark:text-purple-400" title="Élève Fantôme">👻</span>}
                   </h4>
                   <p className="text-zinc-500 dark:text-zinc-400 text-sm font-semibold mt-0.5">{t.studentClass}</p>
                   <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
@@ -550,7 +584,7 @@ export default function Students() {
         style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 0, height: 0, overflow: 'hidden' }}
         aria-hidden="true"
       >
-        {tickets.map(t => (
+        {ticketsToExport.map(t => (
           <QRCodeCanvas
             key={t.id}
             id={`qr-canvas-${t.id}`}

@@ -46,11 +46,13 @@ export default function Dashboard() {
     }
   };
 
+  const visibleTickets = tickets.filter(t => !t.isGhost);
+
   const stats = {
-    totalRevenue: tickets.reduce((acc, t) => acc + (t.amount || 0), 0),
-    totalRegistrations: tickets.length,
-    scanned: tickets.filter(t => t.scanned).length,
-    expected: tickets.filter(t => !t.scanned).length,
+    totalRevenue: visibleTickets.reduce((acc, t) => acc + (t.amount || 0), 0),
+    totalRegistrations: visibleTickets.length,
+    scanned: visibleTickets.filter(t => t.scanned).length,
+    expected: visibleTickets.filter(t => !t.scanned).length,
   };
 
   return (
